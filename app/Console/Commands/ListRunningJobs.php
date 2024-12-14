@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Artisan;
 
 class ListRunningJobs extends Command
 {
@@ -12,13 +13,17 @@ class ListRunningJobs extends Command
 
     public function handle()
     {
+//	    dd($this->isHorizonRunning());
+	if (!$this->isHorizonRunning()) {
+            $this->warn('Horizon is not running. No jobs will be listed.');
+            return;
+        }
 	// Get all reserved queue keys from Redis
-    $queueKeys = Redis::keys('queues:*:reserved'); // Match all reserved queues
+    $queueKeys = Redis::keys('queues:default:reserved'); // Match all reserved queues
 
     $runningJobs = [];
     $currentTimestamp = time(); // Current timestamp in seconds
 
-    // Loop through all reserved queue keys
     foreach ($queueKeys as $key) {
         // Fetch all jobs with scores (timestamps) for each queue
         $reservedJobs = Redis::zrange($key, 0, -1, ['WITHSCORES' => true]);
@@ -48,5 +53,18 @@ class ListRunningJobs extends Command
 
     // Output the result in a table format
     $this->table(['JOB_ID', 'JOB_CLASS', 'QUEUE_NAME', 'START_TIME', 'ATTEMPTS'], $runningJobs);
+    }
+
+    private function isHorizonRunning()
+    {
+	    $horizonStatus = Artisan::call('horizon:status');
+	    $output = trim(Artisan::output());
+
+if (str_contains($output, 'Horizon is running')) {
+    return true; // Horizon is running
+}
+
+return false; // Horizon is not running
+       
     }
 }
