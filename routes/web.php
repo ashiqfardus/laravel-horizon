@@ -13,37 +13,47 @@ Route::get('/', function () {
 
 
 Route::get('/dispatch-job', function () {
+	DummyJob::dispatch()->delay(now()->addMinutes(30));
 	DummyJob::dispatch();
-
 	return 'Job dispatched!';
 });
 
-Route::get('/failed-jobs', function () {
-	// Define the key for the default queue's reserved jobs
-    $key = 'queues:default:reserved';
+Route::get('/running-jobs', function () {
+	
+	$keys = Redis::keys('queues:*:reserved');
 
-    // Fetch all jobs with scores (timestamps)
-    $reservedJobs = Redis::zrange($key, 0, -1, ['WITHSCORES' => true]);
+	dd($keys);
+	$key = 'queues:default:reserved';
 
-    $runningJobs = [];
+// Fetch all jobs with scores (timestamps)
+$reservedJobs = Redis::zrange($key, 0, -1, ['WITHSCORES' => true]);
 
-    foreach ($reservedJobs as $jobData => $timestamp) {
-        // Decode the JSON data for each job
-        $jobDetails = json_decode($jobData, true);
+$runningJobs = [];
+$currentTimestamp = time(); // Current timestamp in seconds
 
-        if ($jobDetails) {
+foreach ($reservedJobs as $jobData => $timestamp) {
+    // Decode the JSON data for each job
+    $jobDetails = json_decode($jobData, true);
+
+    if ($jobDetails) {
+        // Determine if the job is still running
+        $timeout = $jobDetails['timeout'] ?? null; // Get job's timeout (null if not set)
+
+        if ($timeout === null || $currentTimestamp <= $timestamp + $timeout) {
             $runningJobs[] = [
                 'uuid' => $jobDetails['uuid'] ?? null,
                 'displayName' => $jobDetails['displayName'] ?? 'Unknown',
                 'attempts' => $jobDetails['attempts'] ?? 0,
                 'pushedAt' => $jobDetails['pushedAt'] ?? null,
                 'reservedAt' => $timestamp,
+                'isRunning' => true,
             ];
         }
     }
+}
 
-    // Return or print the list of currently running jobs
-    return $runningJobs;
+// Return or print the list of currently running jobs
+return $runningJobs;
 	
 });
 

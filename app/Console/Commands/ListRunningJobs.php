@@ -3,9 +3,7 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
-use Laravel\Horizon\Repositories\RedisJobRepository;
 use Illuminate\Support\Facades\Redis;
-use Illuminate\Redis\RedisManager;
 
 class ListRunningJobs extends Command
 {
@@ -14,31 +12,41 @@ class ListRunningJobs extends Command
 
     public function handle()
     {
-	 // Get the Redis connection using RedisFacade, which returns the correct Redis instance
-    	Redis::connection();
-        $jobRepository = new RedisJobRepository(Redis::getFacadeRoot());
+	// Get all reserved queue keys from Redis
+    $queueKeys = Redis::keys('queues:*:reserved'); // Match all reserved queues
 
-        // Get all jobs reserved by workers
-        $runningJobs = Redis::keys('laravel_horizon:job:*');
-	\Log::info('log starting....');
-	\Log::info($runningJobs);
-        $data = [];
-        foreach ($runningJobs as $key) {
-            $job = Redis::hgetall($key);
-		\Log::info($job);
-            if (isset($job['reserved_at']) && !isset($job['completed_at']) && !isset($job['failed_at'])) {
-                $data[] = [
-                    'JOB_ID' => $job['id'] ?? 'Unknown',
-                    'JOB_CLASS' => $job['displayName'] ?? 'Unknown',
-                    'QUEUE_NAME' => $job['queue'] ?? 'Unknown',
-                    'START_TIME' => isset($job['reserved_at']) ? date('Y-m-d H:i:s', $job['reserved_at']) : 'Unknown',
-                ];
+    $runningJobs = [];
+    $currentTimestamp = time(); // Current timestamp in seconds
+
+    // Loop through all reserved queue keys
+    foreach ($queueKeys as $key) {
+        // Fetch all jobs with scores (timestamps) for each queue
+        $reservedJobs = Redis::zrange($key, 0, -1, ['WITHSCORES' => true]);
+
+        // Loop through each reserved job in the current queue
+        foreach ($reservedJobs as $jobData => $timestamp) {
+            // Decode the JSON data for each job
+            $jobDetails = json_decode($jobData, true);
+
+            if ($jobDetails) {
+                // Determine if the job is still running
+                $timeout = $jobDetails['timeout'] ?? null; // Get job's timeout (null if not set)
+
+                // Check if the job is still running
+                if ($timeout === null || $currentTimestamp <= $timestamp + $timeout) {
+                    $runningJobs[] = [
+                        'JOB_ID' => $jobDetails['uuid'] ?? 'Unknown',
+                        'JOB_CLASS' => $jobDetails['displayName'] ?? 'Unknown',
+                        'QUEUE_NAME' => str_replace('queues:', '', explode(':', $key)[1]) ?? 'Unknown', // Extract queue name
+                        'START_TIME' => date('Y-m-d H:i:s', $timestamp),
+                        'ATTEMPTS' => $jobDetails['attempts'] ?? 0,
+                    ];
+                }
             }
-	}
-	\Log::info('log ending......');
-	
+        }
+    }
 
-        // Output the result
-        $this->table(['JOB_ID', 'JOB_CLASS', 'QUEUE_NAME', 'START_TIME'], $data);
+    // Output the result in a table format
+    $this->table(['JOB_ID', 'JOB_CLASS', 'QUEUE_NAME', 'START_TIME', 'ATTEMPTS'], $runningJobs);
     }
 }

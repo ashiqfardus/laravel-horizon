@@ -147,10 +147,7 @@ return [
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
-          'prefx'=> env(
-        'HORIZON_PREFIX',
-        Str::slug(env('APP_NAME', 'laravel'), '_').'_horizon:'
-    ),
+            'prefx'=> env('HORIZON_PREFIX',Str::slug(env('APP_NAME', 'laravel'), '_').'_horizon:'),
         ],
 
         'default' => [
@@ -161,14 +158,6 @@ return [
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
 	],
-
-	'horizon' => [
-      	  'host' => env('REDIS_HOST', '127.0.0.1'),
-       	 'password' => env('REDIS_PASSWORD', null),
-	 'port' => env('REDIS_PORT', 6379),
-	'username' => env('REDIS_USERNAME'),
-      	 'database' => 0, // Ensure this matches the database used by the CLI
-   	 ],
 
         'cache' => [
             'url' => env('REDIS_URL'),
