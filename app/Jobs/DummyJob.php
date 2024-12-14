@@ -3,11 +3,14 @@
 namespace App\Jobs;
 
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Bus\Queueable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 
 class DummyJob implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, InteractsWithQueue, Dispatchable, SerializesModels;
 
     /**
      * Create a new job instance.
@@ -22,6 +25,11 @@ class DummyJob implements ShouldQueue
      */
     public function handle(): void
     {
-        //
+    
+    sleep(15); // Sleep to simulate long task
+   
+   \Log::info('Job processed', ['job_id' => $this->job->getJobId()]);
+    sleep(15); // Sleep again to simulate further processing
+   
     }
 }
