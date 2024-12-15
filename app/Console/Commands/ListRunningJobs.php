@@ -13,18 +13,17 @@ class ListRunningJobs extends Command
 
     public function handle()
     {
-//	    dd($this->isHorizonRunning());
-	if (!$this->isHorizonRunning()) {
+        $supervisor_id = gethostname();
+        if (!$this->isHorizonRunning()) {
             $this->warn('Horizon is not running. No jobs will be listed.');
             return;
         }
-	// Get all reserved queue keys from Redis
-    $queueKeys = Redis::keys('queues:default:reserved'); // Match all reserved queues
+        // Get all reserved queue keys from Redis
+        $key = 'queues:default:reserved';
 
-    $runningJobs = [];
-    $currentTimestamp = time(); // Current timestamp in seconds
+        $runningJobs = [];
+        $currentTimestamp = time(); // Current timestamp in seconds
 
-    foreach ($queueKeys as $key) {
         // Fetch all jobs with scores (timestamps) for each queue
         $reservedJobs = Redis::zrange($key, 0, -1, ['WITHSCORES' => true]);
 
@@ -33,38 +32,40 @@ class ListRunningJobs extends Command
             // Decode the JSON data for each job
             $jobDetails = json_decode($jobData, true);
 
-            if ($jobDetails) {
-                // Determine if the job is still running
-                $timeout = $jobDetails['timeout'] ?? null; // Get job's timeout (null if not set)
+            $string =$jobDetails['data']['command'];
+            $unserialized = unserialize($string);
+            $supervisor_id_redis = $unserialized->supervisor_id;
 
-                // Check if the job is still running
+            // Check if the job belongs to one of the current host's supervisors
+            if ($jobDetails && $supervisor_id_redis==$supervisor_id) {
+                $timeout = $jobDetails['timeout'] ?? null;
+
                 if ($timeout === null || $currentTimestamp <= $timestamp + $timeout) {
                     $runningJobs[] = [
                         'JOB_ID' => $jobDetails['uuid'] ?? 'Unknown',
                         'JOB_CLASS' => $jobDetails['displayName'] ?? 'Unknown',
-                        'QUEUE_NAME' => str_replace('queues:', '', explode(':', $key)[1]) ?? 'Unknown', // Extract queue name
+                        'QUEUE_NAME' => str_replace('queues:', '', explode(':', $key)[1]) ?? 'Unknown',
                         'START_TIME' => date('Y-m-d H:i:s', $timestamp),
                         'ATTEMPTS' => $jobDetails['attempts'] ?? 0,
                     ];
                 }
             }
         }
-    }
 
-    // Output the result in a table format
-    $this->table(['JOB_ID', 'JOB_CLASS', 'QUEUE_NAME', 'START_TIME', 'ATTEMPTS'], $runningJobs);
+        // Output the result in a table format
+        $this->table(['JOB_ID', 'JOB_CLASS', 'QUEUE_NAME', 'START_TIME', 'ATTEMPTS'], $runningJobs);
     }
 
     private function isHorizonRunning()
     {
-	    $horizonStatus = Artisan::call('horizon:status');
-	    $output = trim(Artisan::output());
+        $horizonStatus = Artisan::call('horizon:status');
+        $output = trim(Artisan::output());
 
-if (str_contains($output, 'Horizon is running')) {
-    return true; // Horizon is running
-}
+        if (str_contains($output, 'Horizon is running')) {
+            return true; // Horizon is running
+        }
 
-return false; // Horizon is not running
-       
+        return false; // Horizon is not running
+
     }
 }

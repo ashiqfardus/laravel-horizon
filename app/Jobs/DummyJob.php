@@ -15,9 +15,10 @@ class DummyJob implements ShouldQueue
     /**
      * Create a new job instance.
      */
+    public $supervisor_id;
     public function __construct()
     {
-        //
+        $this->supervisor_id = gethostname();
     }
 
     /**
@@ -25,11 +26,10 @@ class DummyJob implements ShouldQueue
      */
     public function handle(): void
     {
-    
-    sleep(60); // Sleep to simulate long task
-   
-   \Log::info('Job processed', ['job_id' => $this->job->getJobId()]);
-    sleep(60); // Sleep again to simulate further processing
-   
+        sleep(60); // Sleep to simulate long task
+
+       \Log::info('Job processed', ['job_id' => $this->job->getJobId()]);
+        sleep(60); // Sleep again to simulate further processing
+
     }
 }
